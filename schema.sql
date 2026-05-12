@@ -1,5 +1,12 @@
 CREATE SCHEMA IF NOT EXISTS penca;
 
+-- Custom Admin Users Table
+CREATE TABLE IF NOT EXISTS penca.usuarios_admin (
+  usuario   varchar PRIMARY KEY,
+  password  varchar NOT NULL,
+  creado_en timestamptz DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS penca.partidos (
   id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   etapa         varchar NOT NULL,
@@ -68,19 +75,15 @@ CREATE TRIGGER trigger_calcular_puntos
   AFTER UPDATE ON penca.partidos
   FOR EACH ROW EXECUTE FUNCTION penca.calcular_puntos();
 
-
--- VALIDATION TRIGGER: Block predictions if match has already started
 CREATE OR REPLACE FUNCTION penca.check_prediction_time()
 RETURNS TRIGGER AS $$
 DECLARE
   v_fecha_partido timestamptz;
 BEGIN
   SELECT fecha_partido INTO v_fecha_partido FROM penca.partidos WHERE id = NEW.partido_id;
-  
   IF NOW() >= v_fecha_partido THEN
     RAISE EXCEPTION 'El partido ya ha comenzado. No se aceptan más predicciones.';
   END IF;
-  
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
@@ -90,38 +93,36 @@ CREATE TRIGGER trigger_check_prediction_time
   BEFORE INSERT ON penca.predicciones
   FOR EACH ROW EXECUTE FUNCTION penca.check_prediction_time();
 
-
 ALTER TABLE penca.partidos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE penca.predicciones ENABLE ROW LEVEL SECURITY;
+ALTER TABLE penca.usuarios_admin ENABLE ROW LEVEL SECURITY;
 
--- ADMIN POLICIES (authenticated users have full access)
-DROP POLICY IF EXISTS "admin_all_matches" ON penca.partidos;
-CREATE POLICY "admin_all_matches" ON penca.partidos
-  FOR ALL TO authenticated
-  USING (true) WITH CHECK (true);
+-- POLICIES
+DROP POLICY IF EXISTS "public_read_matches" ON penca.partidos;
+CREATE POLICY "public_read_matches" ON penca.partidos FOR SELECT USING (true);
 
-DROP POLICY IF EXISTS "admin_all_predictions" ON penca.predicciones;
-CREATE POLICY "admin_all_predictions" ON penca.predicciones
-  FOR ALL TO authenticated
-  USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "public_insert_predictions" ON penca.predicciones;
+CREATE POLICY "public_insert_predictions" ON penca.predicciones FOR INSERT WITH CHECK (true);
 
--- PUBLIC POLICIES (anon users)
-DROP POLICY IF EXISTS "anon_read_matches" ON penca.partidos;
-CREATE POLICY "anon_read_matches" ON penca.partidos
-  FOR SELECT TO anon
-  USING (estado IN ('abierto', 'cerrado', 'finalizado'));
+DROP POLICY IF EXISTS "public_read_predictions" ON penca.predicciones;
+CREATE POLICY "public_read_predictions" ON penca.predicciones FOR SELECT USING (true);
 
-DROP POLICY IF EXISTS "anon_insert_predictions" ON penca.predicciones;
-CREATE POLICY "anon_insert_predictions" ON penca.predicciones
-  FOR INSERT TO anon
-  WITH CHECK (true);
+DROP POLICY IF EXISTS "public_read_admin_users" ON penca.usuarios_admin;
+CREATE POLICY "public_read_admin_users" ON penca.usuarios_admin FOR SELECT USING (true);
 
-DROP POLICY IF EXISTS "anon_read_own_prediction" ON penca.predicciones;
-CREATE POLICY "anon_read_own_prediction" ON penca.predicciones
-  FOR SELECT TO anon
-  USING (true);
+DROP POLICY IF EXISTS "admin_manage_all" ON penca.partidos;
+CREATE POLICY "admin_manage_all" ON penca.partidos FOR ALL USING (true);
+
+DROP POLICY IF EXISTS "admin_manage_predictions" ON penca.predicciones;
+CREATE POLICY "admin_manage_predictions" ON penca.predicciones FOR ALL USING (true);
+
+-- INITIAL DATA
+INSERT INTO penca.usuarios_admin (usuario, password) 
+VALUES ('jorge.avezada', 'Agrotec2026')
+ON CONFLICT (usuario) DO NOTHING;
 
 INSERT INTO penca.partidos (etapa, fecha_partido, equipo_a, equipo_b, bandera_a, bandera_b, grupo, estado)
 VALUES
   ('Grupos - Fecha 1', '2026-06-13 18:00:00-03', 'Paraguay', 'Alemania', '🇵🇾', '🇩🇪', 'Grupo B', 'abierto'),
-  ('Grupos - Fecha 1', '2026-06-14 15:00:00-03', 'Brasil', 'México', '🇧🇷', '🇲🇽', 'Grupo C', 'abierto');
+  ('Grupos - Fecha 1', '2026-06-14 15:00:00-03', 'Brasil', 'México', '🇧🇷', '🇲🇽', 'Grupo C', 'abierto')
+ON CONFLICT DO NOTHING;

@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/ca
 import { Shield } from 'lucide-react'
 
 export function LoginScreen() {
-  const [email, setEmail] = useState('')
+  const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -17,15 +17,24 @@ export function LoginScreen() {
     e.preventDefault()
     setLoading(true)
     setError(null)
-
+    
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      })
-
-      if (error) throw error
-
+      const { data, error: dbError } = await supabase
+        .schema('penca')
+        .from('usuarios_admin')
+        .select('*')
+        .eq('usuario', username)
+        .eq('password', password)
+        .single()
+      
+      if (dbError || !data) {
+        throw new Error("Usuario o contraseña incorrectos")
+      }
+      
+      // Save session in localStorage
+      localStorage.setItem('penca_admin_logged_in', 'true')
+      localStorage.setItem('penca_admin_user', username)
+      
       navigate('/admin')
     } catch (err: any) {
       setError(err.message || "Error al iniciar sesión")
@@ -42,37 +51,37 @@ export function LoginScreen() {
             <Shield className="w-6 h-6 text-primary" />
           </div>
           <CardTitle className="text-2xl font-black text-primary">Admin Penca</CardTitle>
-          <p className="text-muted-foreground text-sm">Acceso exclusivo para administradores</p>
+          <p className="text-muted-foreground text-sm">Acceso exclusivo con cuenta Agrotec</p>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleLogin} className="space-y-4 pt-4">
             <div className="space-y-2">
-              <label className="text-sm font-semibold text-foreground">Correo electrónico</label>
-              <Input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                placeholder="admin@agrotec.com"
+              <label className="text-sm font-semibold text-foreground">Usuario</label>
+              <Input 
+                type="text" 
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                required 
+                placeholder="nombre.apellido"
               />
             </div>
             <div className="space-y-2">
               <label className="text-sm font-semibold text-foreground">Contraseña</label>
-              <Input
-                type="password"
+              <Input 
+                type="password" 
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                required
+                required 
                 placeholder="••••••••"
               />
             </div>
-
+            
             {error && (
               <div className="p-3 bg-destructive/10 text-destructive text-sm rounded-md text-center font-medium">
                 {error}
               </div>
             )}
-
+            
             <Button type="submit" className="w-full h-12 font-bold text-base mt-2" disabled={loading}>
               {loading ? "Verificando..." : "Ingresar al Panel"}
             </Button>
