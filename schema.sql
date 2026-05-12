@@ -1,5 +1,11 @@
 CREATE SCHEMA IF NOT EXISTS penca;
 
+-- Grant usage to the schema for the API roles
+GRANT USAGE ON SCHEMA penca TO anon, authenticated;
+GRANT ALL ON ALL TABLES IN SCHEMA penca TO anon, authenticated;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA penca TO anon, authenticated;
+GRANT ALL ON ALL FUNCTIONS IN SCHEMA penca TO anon, authenticated;
+
 -- Custom Admin Users Table
 CREATE TABLE IF NOT EXISTS penca.usuarios_admin (
   usuario   varchar PRIMARY KEY,
